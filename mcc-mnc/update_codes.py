@@ -60,7 +60,7 @@ for url in wikipediaURLs:
 	"""
 	for t in soup.find_all("table", class_="wikitable"):
 		try:
-			if not 'MCC' in t.text:
+			if 'MCC' not in t.text:
 				continue
 			h4=t.find_previous_sibling("h4")
 			if not h4 or ' - ' not in h4.text or '[edit]' not in h4.text:

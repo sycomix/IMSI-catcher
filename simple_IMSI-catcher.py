@@ -72,27 +72,19 @@ class tracker:
 
     # return something like '0xd9605460'
     def str_tmsi(self, tmsi):
-        if tmsi != "":
-            new_tmsi = "0x"
-            for a in tmsi:
-                c = hex(a)
-                if len(c) == 4:
-                    new_tmsi += str(c[2]) + str(c[3])
-                else:
-                    new_tmsi += "0" + str(c[2])
-            return new_tmsi
-        else:
+        if tmsi == "":
             return ""
+        new_tmsi = "0x"
+        for a in tmsi:
+            c = hex(a)
+            new_tmsi += str(c[2]) + str(c[3]) if len(c) == 4 else f"0{str(c[2])}"
+        return new_tmsi
 
     def decode_imsi(self, imsi):
         new_imsi = ''
         for a in imsi:
             c = hex(a)
-            if len(c) == 4:
-                new_imsi += str(c[3]) + str(c[2])
-            else:
-                new_imsi += str(c[2]) + "0"
-
+            new_imsi += str(c[3]) + str(c[2]) if len(c) == 4 else f"{str(c[2])}0"
         mcc = new_imsi[1:4]
         mnc = new_imsi[4:6]
         return new_imsi, mcc, mnc
@@ -152,16 +144,15 @@ class tracker:
 
     def sqlite_file(self, filename):
         import sqlite3  # Avoid pulling in sqlite3 when not saving
-        print("Saving to SQLite database in %s" % filename)
+        print(f"Saving to SQLite database in {filename}")
         self.sqlite_con = sqlite3.connect(filename)
         self.sqlite_con.text_factory = str
         # FIXME Figure out proper SQL type for each attribute
         self.sqlite_con.execute("CREATE TABLE IF NOT EXISTS observations(stamp datetime, tmsi1 text, tmsi2 text, imsi text, imsicountry text, imsibrand text, imsioperator text, mcc integer, mnc integer, lac integer, cell integer);")
 
     def text_file(self, filename):
-        txt = open(filename, "w")
-        txt.write("stamp, tmsi1, tmsi2, imsi, imsicountry, imsibrand, imsioperator, mcc, mnc, lac, cell\n")
-        txt.close()
+        with open(filename, "w") as txt:
+            txt.write("stamp, tmsi1, tmsi2, imsi, imsicountry, imsibrand, imsioperator, mcc, mnc, lac, cell\n")
         self.textfilePath = filename
 
     def mysql_file(self):
@@ -197,10 +188,8 @@ class tracker:
 
         if self.textfilePath:
             now = datetime.datetime.now()
-            txt = open(self.textfilePath, "a")
-            txt.write(f"{str(now)}, {tmsi1}, {tmsi2}, {imsi}, {imsicountry}, {imsibrand}, {imsioperator}, {mcc}, {mnc}, {lac}, {cell}\n")
-            txt.close()
-
+            with open(self.textfilePath, "a") as txt:
+                txt.write(f"{str(now)}, {tmsi1}, {tmsi2}, {imsi}, {imsicountry}, {imsibrand}, {imsioperator}, {mcc}, {mnc}, {lac}, {cell}\n")
         if tmsi1 == "":
             tmsi1 = None
         if tmsi2 == "":
@@ -212,8 +201,6 @@ class tracker:
                (now, tmsi1, tmsi2, imsi, imsicountry, imsibrand, imsioperator, mcc, mnc, lac, cell)
             )
             self.sqlite_con.commit()
-            pass
-
         if self.mysql_cur:
             print("saving data to db...")
             # Example query
@@ -284,7 +271,12 @@ class tracker:
         if not imsi1 and not imsi2:
             # Register IMSI as seen if a TMSI believed to
             # belong to the IMSI is seen.
-            if self.tmsis and tmsi1 and tmsi1 in self.tmsis and "" != self.tmsis[tmsi1]:
+            if (
+                self.tmsis
+                and tmsi1
+                and tmsi1 in self.tmsis
+                and self.tmsis[tmsi1] != ""
+            ):
                 self.imsi_seen(self.tmsis[tmsi1], arfcn)
             if self.show_all_tmsi:
                 do_print = False
@@ -410,19 +402,12 @@ def find_cell(gsm, udpdata, t=None):
         if p[0x12] == 0x1b:  # (0x12 + 0x2a = 0x3c) Message Type: System Information Type 3
             # FIXME
             m = hex(p[0x15])
-            if len(m) < 4:
-                mcc = m[2] + '0'
-            else:
-                mcc = m[3] + m[2]
+            mcc = f'{m[2]}0' if len(m) < 4 else m[3] + m[2]
             mcc += str(p[0x16] & 0x0f)
 
             # FIXME not works with mnc like 005 or 490
             m = hex(p[0x17])
-            if len(m) < 4:
-                mnc = m[2] + '0'
-            else:
-                mnc = m[3] + m[2]
-
+            mnc = f'{m[2]}0' if len(m) < 4 else m[3] + m[2]
             lac = p[0x18] * 256 + p[0x19]
             cell = p[0x13] * 256 + p[0x14]
             t.current_cell(mcc, mnc, lac, cell)
@@ -523,11 +508,7 @@ def find_imsi(udpdata, t=None):
                 YY YY YY YY = TMSI/P-TMSI - Mobile Identity 2
                 """
                 tmsi1 = p[0x16:][:4]
-                if p[0x1B] == 0x05 and (p[0x1C] & 0x07) == 4:  # Mobile Identity - Mobile Identity 2 - TMSI/P-TMSI
-                    tmsi2 = p[0x1D:][:4]
-                else:
-                    tmsi2 = ""
-
+                tmsi2 = p[0x1D:][:4] if p[0x1B] == 0x05 and (p[0x1C] & 0x07) == 4 else ""
                 t.register_imsi(gsm.arfcn, imsi1, imsi2, tmsi1, tmsi2, p)
 
         elif p[0x12] == 0x22:  # Message Type: Paging Request Type 2

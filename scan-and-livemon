@@ -26,13 +26,18 @@ def find_gsm_bases():
 	if grgsm_scanner_path is None:
 		print("Error : Please install gr-gsm")
 		exit(1)
-        
+
 	scanner = imp.load_source('scanner', grgsm_scanner_path)
 	sys.modules['scanner'] = scanner
 	(options, args) = scanner.argument_parser().parse_args() #FIXME conflic with argument_parser line 93
-	list = scanner.do_scan(options.samp_rate, options.band, options.speed,
-		options.ppm, options.gain, options.args)
-	return list
+	return scanner.do_scan(
+		options.samp_rate,
+		options.band,
+		options.speed,
+		options.ppm,
+		options.gain,
+		options.args,
+	)
 
 def select_freqs(serverlist, count = 1):
 	"""
@@ -45,12 +50,7 @@ def select_freqs(serverlist, count = 1):
 	only using mcc, mnc and power at the moment.
 	"""
 
-	# Make shallow copy to avoid modifying the list of the caller when
-	# removing elements below.
-	listcopy = []
-	for s in serverlist:
-		listcopy.append(s)
-
+	listcopy = list(serverlist)
 	freqs = []
 	sorted_list = sorted(listcopy, key=lambda s:(-s.power, s.mcc, s.mnc))
 
